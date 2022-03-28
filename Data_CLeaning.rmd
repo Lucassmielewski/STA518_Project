@@ -1,0 +1,62 @@
+---
+title: "Data_Cleaning"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading_pacakages}
+library(tidyverse)
+```
+
+```{r}
+ANA = read_tsv(here::here("data", "2021ANA.EVA"))
+ANA[1,]=names(ANA)
+names(ANA)='COL1'
+```
+
+```{r}
+ANA_vec = as.vector(ANA$COL1)
+
+ANA$COL2= str_detect(ANA$COL1, 'id,')==TRUE
+
+row_index <- ANA %>%
+  mutate(rownumber = row_number()) %>%
+  filter(ANA$COL2==TRUE)
+
+
+# ANA_vec %>% 
+#   str_locate('id,')
+
+row_vec=as.vector(row_index$rownumber)
+ANA_final =data.frame(matrix(NA, nrow = 600, ncol = 1))
+
+for(row in seq(row_vec+1)){
+  if(row!=81){
+    new <- ANA_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
+    ANA_final[ , ncol(ANA_final) + 1] <- c(new, rep(NA, nrow(ANA_final)-length(new)))
+  }
+}
+
+ANA_final <- ANA_final %>% 
+  filter(rowSums(is.na(ANA_final)) != ncol(ANA_final)) %>% 
+  filter(sapply(ANA_final, function(x) grep('play,', x)))
+
+# sapply(ANA_final, function(x) grep('play,', x))
+```
+
+```{r}
+ANA_final %>% 
+  summarise(`Runs` = str_count("-H"))
+
+apply(apply(ANA_final[,1:81],1,str_count,"-H" ),2,sum)
+
+rowSums(str_count(ANA_final[,2], "-H"))
+
+ANA_final[,2]
+
+```
+
+

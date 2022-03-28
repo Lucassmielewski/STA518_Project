@@ -41,13 +41,14 @@ for(row in seq(row_vec+1)){
 }
 
 ANA_final <- ANA_final %>% 
-  filter(rowSums(is.na(ANA_final)) != ncol(ANA_final)) %>% 
-  filter(sapply(ANA_final, function(x) grep('play,', x)))
+  filter(rowSums(is.na(ANA_final)) != ncol(ANA_final)) 
+# %>% 
+#   filter(sapply(ANA_final, function(x) grep('play,', x)))
 
 # sapply(ANA_final, function(x) grep('play,', x))
 ```
 
-```{r}
+```{r Doesn't Work}
 ANA_final %>% 
   summarise(`Runs` = str_count("-H"))
 

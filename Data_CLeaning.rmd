@@ -12,12 +12,66 @@ library(tidyverse)
 ```
 
 ```{r}
-ANA = read_tsv(here::here("data", "2021ANA.EVA"))
-ANA[1,]=names(ANA)
-names(ANA)='COL1'
+(ANA = read_tsv(here::here("data", "2021ANA.EVA"), col_names=FALSE))
 ```
 
-```{r}
+
+
+```{r Converting Each Game to vector and storing in a list}
+#Creating tibble of length 81 that store row number of each game ID
+row_index <- ANA %>%
+  mutate(rownumber = row_number()) %>%
+  filter(str_detect(ANA$X1, 'id,')==TRUE)
+
+#Create Vector of Original Data
+ANA_vec = as.vector(ANA$X1)
+
+#Create Vector of row numbers of ID's (position in ANA_vec)
+row_vec=as.vector(row_index$rownumber)
+
+#Creating List to each Game's data
+ANA_list=list()
+
+#Loop through row_vec (length 81)
+#Split ANA_vec into each game, decided by ID position held in row_vec
+#Add each game vector into ANA_list
+for(row in seq(row_vec+1)){
+  if(row!=81){
+    new <- ANA_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
+    ANA_list[[row]] <- new
+  }
+}
+
+View(ANA_list)
+```
+
+
+```{r Organizing Each Game's vector}
+#Keep Only element in game that start with 'play'
+(plays = str_subset(ANA_list[[1]], 'play'))
+
+game_df = read_csv(plays, col_names = c('Play', 
+                              'Inning', 
+                              'Home Team', 
+                              'Retro ID', 
+                              'Count on Play', 
+                              'Pitch Sequence',
+                              'Outcome'))
+
+game_df %>% 
+  mutate(Runners = if_else(str_detect(Outcome, 'S'), '001', 
+                           if_else(str_detect(Outcome, 'D'), '010', 
+                           if_else(str_detect(Outcome, 'T'), '100',
+                           if_else(str_detect(Outcome, 'HR'), '000', 'NONE'))))) %>% 
+  select(Inning, `Home Team`, Outcome, Runners)
+```
+
+
+
+
+```{r Old Code}
+
+
 ANA_vec = as.vector(ANA$COL1)
 
 ANA$COL2= str_detect(ANA$COL1, 'id,')==TRUE
@@ -33,22 +87,23 @@ row_index <- ANA %>%
 row_vec=as.vector(row_index$rownumber)
 ANA_final =data.frame(matrix(NA, nrow = 600, ncol = 1))
 
+ANA_list=list()
+
 for(row in seq(row_vec+1)){
   if(row!=81){
     new <- ANA_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
-    ANA_final[ , ncol(ANA_final) + 1] <- c(new, rep(NA, nrow(ANA_final)-length(new)))
+    # ANA_final[ , ncol(ANA_final) + 1] <- c(new, rep(NA, nrow(ANA_final)-length(new)))
+    ANA_list[[row]] <- new
   }
 }
 
 ANA_final <- ANA_final %>% 
-  filter(rowSums(is.na(ANA_final)) != ncol(ANA_final)) 
-# %>% 
-#   filter(sapply(ANA_final, function(x) grep('play,', x)))
+  filter(rowSums(is.na(ANA_final)) != ncol(ANA_final))
 
-# sapply(ANA_final, function(x) grep('play,', x))
-```
 
-```{r Doesn't Work}
+
+
+
 ANA_final %>% 
   summarise(`Runs` = str_count("-H"))
 

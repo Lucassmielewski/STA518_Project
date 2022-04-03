@@ -12,7 +12,7 @@ library(tidyverse)
 ```
 
 ```{r}
-(ANA = read_tsv(here::here("data", "2021ANA.EVA"), col_names=FALSE))
+ANA = read_tsv(here::here("data", "2021ANA.EVA"), col_names=FALSE)
 ```
 
 
@@ -42,7 +42,6 @@ for(row in seq(row_vec+1)){
   }
 }
 
-View(ANA_list)
 ```
 
 
@@ -101,14 +100,12 @@ batter_codes = c('S' = 1, 'D' = 2, 'T' = 3,
 #Creating a mapping function to map batter_codes (basically replaces a for loop)
 #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaulate this code
 batter_conditions <- map(names(batter_codes), 
-                         ~quo(str_starts(Outcome, !!.x+[0-9]+\\)~batter_codes[!!.x])) 
+                         ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/)", sep="")))~batter_codes[!!.x]))
 
 #Applying the batter code condition to the game dataframe
-game_df %>% 
-  mutate(`Batter Bases` = case_when(!!!batter_conditions)) %>% 
-  select(c(`Outcome`, `Batter Bases`))
+game_df <- game_df %>% 
+  mutate(`Batter Bases` = case_when(!!!batter_conditions))
 ```
-
 
 
 ```{r Creating Onbase}
@@ -131,7 +128,7 @@ new_inning = c(which(game_df$`Home Team` != lag(game_df$`Home Team`)))
                     (`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ '000')))
 
 ```
-
+Next Thing to Do is Move Runners
 
 ```{r}
   mutate(Onbase = if_else(str_detect(Outcome, 'S'), '001', #Creating a column to store the runners on base before the start of the at bat

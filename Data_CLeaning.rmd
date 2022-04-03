@@ -48,7 +48,7 @@ View(ANA_list)
 
 ```{r Organizing Each Game's vector}
 #Keep Only element in game that start with 'play'
-(plays = str_subset(ANA_list[[1]], 'play'))
+plays = str_subset(ANA_list[[1]], 'play')
 
 game_df = read_csv(plays, col_names = c('Play', 
                               'Inning', 
@@ -58,61 +58,87 @@ game_df = read_csv(plays, col_names = c('Play',
                               'Pitch Sequence',
                               'Outcome'))
 
+(game_df <- game_df %>% 
+  separate(Outcome, into = c('Outcome', 'Runner Advancements'),"[.]", extra = "merge")) #Creating Column to hold runner advancement codes
+```
+
+Codes Representing the batter reaching base:
+Code - Outcome (Number of Bases taken)
+S - Single (1)
+D - Double (2)
+T - Triple (3)
+H or HR - Home Run (4)
+DGR - Ground Rule Double (2)
+E - Error (1, Unless specified in Runner Advancements ie. B-2)
+HP - Hit By Pitch (1)
+I or IW - Intential Walk (1)
+W - Walk (1)
+C - Catcher Interference (1)
+
+```{r Creating Batter Event Codes}
+
+batter_codes = c('S' = 1, 'D' = 2, 'T' = 3, 
+                 'H' = 4, 'HR' = 4, 'DGR' = 2,
+                 'E' = 1, 'HP' = 1, 'I' = 1, 
+                 'IW' = 1, 'W' = 1, 'C' = 1)
+
+# for(item in names(batter_codes)){
+#   print(batter_codes[[item]])
+# }
+# 
+# game_df %>% 
+#   mutate(`Batter Bases` = for(item in names(batter_codes)){
+#                               case_when(str_detect(Outcome, item) ~ batter_codes[[item]])
+#   }
+#   )
+# 
+# code_map <- function(column, batter_codes){
+#   for(item in names(batter_codes)){
+#     case_when(str_detect(column, item) ~ batter_codes[[item]])
+#   }
+# }
+
+#Creating a mapping function to map batter_codes (basically replaces a for loop)
+#quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaulate this code
+batter_conditions <- map(names(batter_codes), 
+                         ~quo(str_starts(Outcome, !!.x+[0-9]+\\)~batter_codes[!!.x])) 
+
+#Applying the batter code condition to the game dataframe
 game_df %>% 
-  mutate(Runners = if_else(str_detect(Outcome, 'S'), '001', 
-                           if_else(str_detect(Outcome, 'D'), '010', 
+  mutate(`Batter Bases` = case_when(!!!batter_conditions)) %>% 
+  select(c(`Outcome`, `Batter Bases`))
+```
+
+
+
+```{r Creating Onbase}
+#Creating vector to hold indices of new inning (lag from Dplyr is really helpful)
+new_inning = c(which(game_df$`Home Team` != lag(game_df$`Home Team`))) 
+
+# Assigning Onbase to 000 at start of Each inning  (Note: ifelse doesn't care about type)
+# (game_df <- game_df %>% 
+#   mutate(`Onbase` = ifelse(row_number() %in% new_inning, '000',
+#                     ifelse(`Batter Bases`==1, '001',
+#                     ifelse(`Batter Bases`==2, '010',
+#                     ifelse(`Batter Bases`==3, '100',
+#                     ifelse(`Batter Bases`==4, '000', NA)))))))
+
+(game_df <- game_df %>% 
+  mutate(`Onbase` = case_when(row_number() %in% new_inning ~ '000',
+                    (`Batter Bases`==1) & (is.na(`Runner Advancements`)) ~ '001',
+                    (`Batter Bases`==2) & (is.na(`Runner Advancements`)) ~ '010',
+                    (`Batter Bases`==3) & (is.na(`Runner Advancements`)) ~ '100',
+                    (`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ '000')))
+
+```
+
+
+```{r}
+  mutate(Onbase = if_else(str_detect(Outcome, 'S'), '001', #Creating a column to store the runners on base before the start of the at bat
+                           if_else(str_detect(Outcome, 'D'), '010',
                            if_else(str_detect(Outcome, 'T'), '100',
-                           if_else(str_detect(Outcome, 'HR'), '000', 'NONE'))))) %>% 
-  select(Inning, `Home Team`, Outcome, Runners)
+                           if_else(str_detect(Outcome, 'HR'), '000', 'NONE')))))
 ```
 
-
-
-
-```{r Old Code}
-
-
-ANA_vec = as.vector(ANA$COL1)
-
-ANA$COL2= str_detect(ANA$COL1, 'id,')==TRUE
-
-row_index <- ANA %>%
-  mutate(rownumber = row_number()) %>%
-  filter(ANA$COL2==TRUE)
-
-
-# ANA_vec %>% 
-#   str_locate('id,')
-
-row_vec=as.vector(row_index$rownumber)
-ANA_final =data.frame(matrix(NA, nrow = 600, ncol = 1))
-
-ANA_list=list()
-
-for(row in seq(row_vec+1)){
-  if(row!=81){
-    new <- ANA_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
-    # ANA_final[ , ncol(ANA_final) + 1] <- c(new, rep(NA, nrow(ANA_final)-length(new)))
-    ANA_list[[row]] <- new
-  }
-}
-
-ANA_final <- ANA_final %>% 
-  filter(rowSums(is.na(ANA_final)) != ncol(ANA_final))
-
-
-
-
-
-ANA_final %>% 
-  summarise(`Runs` = str_count("-H"))
-
-apply(apply(ANA_final[,1:81],1,str_count,"-H" ),2,sum)
-
-rowSums(str_count(ANA_final[,2], "-H"))
-
-ANA_final[,2]
-
-```
 
 

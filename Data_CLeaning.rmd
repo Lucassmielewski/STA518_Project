@@ -100,7 +100,7 @@ batter_codes = c('S' = 1, 'D' = 2, 'T' = 3,
 #Creating a mapping function to map batter_codes (basically replaces a for loop)
 #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaulate this code
 batter_conditions <- map(names(batter_codes), 
-                         ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/)", sep="")))~batter_codes[!!.x]))
+                         ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)", sep="")))~batter_codes[!!.x]))
 
 #Applying the batter code condition to the game dataframe
 game_df <- game_df %>% 
@@ -110,7 +110,7 @@ game_df <- game_df %>%
 
 ```{r Creating Onbase}
 #Creating vector to hold indices of new inning (lag from Dplyr is really helpful)
-new_inning = c(which(game_df$`Home Team` != lag(game_df$`Home Team`))) 
+new_inning = c(1, which(game_df$`Home Team` != lag(game_df$`Home Team`))) 
 
 # Assigning Onbase to 000 at start of Each inning  (Note: ifelse doesn't care about type)
 # (game_df <- game_df %>% 
@@ -121,14 +121,37 @@ new_inning = c(which(game_df$`Home Team` != lag(game_df$`Home Team`)))
 #                     ifelse(`Batter Bases`==4, '000', NA)))))))
 
 (game_df <- game_df %>% 
-  mutate(`Onbase` = case_when(row_number() %in% new_inning ~ '000',
-                    (`Batter Bases`==1) & (is.na(`Runner Advancements`)) ~ '001',
-                    (`Batter Bases`==2) & (is.na(`Runner Advancements`)) ~ '010',
-                    (`Batter Bases`==3) & (is.na(`Runner Advancements`)) ~ '100',
-                    (`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ '000')))
+  mutate(`First` = case_when(row_number() %in% new_inning ~ 0,
+                              lag(`Batter Bases`==1) & (is.na(`Runner Advancements`)) ~ 1,
+                              lag(`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ 0),
+         `Second`= case_when(row_number() %in% new_inning ~ 0,
+                             lag(`Batter Bases`==2) & (is.na(`Runner Advancements`)) ~ 1,
+                             lag(`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ 0),
+         `Third`= case_when(row_number() %in% new_inning ~ 0,
+                            lag(`Batter Bases`==3) & (is.na(`Runner Advancements`)) ~ 1,
+                            lag(`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ 0),
+         `Outs` = case_when(row_number() %in% new_inning ~ 0)))
 
+for (i in seq_along(game_df$Outs)) if (is.na(game_df$`Batter Bases`)) game_df$Outs[i] = game_df$Outs[i] + 1
+
+game_df %>%
+  mutate(offset = cumsum(is.na(`Batter Bases`) & game_df$`Home Team` != lag(game_df$`Home Team`)))%>%
+  fill(`Outs`, .direction = "down") %>%
+  mutate(finaloutput = `Outs` + offset)
 ```
 Next Thing to Do is Move Runners
+
+
+```{r Moving Runners}
+game_df %>% 
+  mutate(`Second` = case_when(lag(str_detect(`Runner Advancements`, "-2")) ~ 1, 
+                              TRUE ~ as.numeric(Second)),
+         `Third` = case_when(lag(str_detect(`Runner Advancements`, "-3")) ~ 1, 
+                              TRUE ~ as.numeric(Third)),
+         `Runs` = case_when(lag(str_detect(`Runner Advancements`, "-H")) ~ 
+                              lag(str_count(`Runner Advancements`,"-H"))))
+```
+
 
 ```{r}
   mutate(Onbase = if_else(str_detect(Outcome, 'S'), '001', #Creating a column to store the runners on base before the start of the at bat

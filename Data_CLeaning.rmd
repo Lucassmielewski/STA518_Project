@@ -95,7 +95,7 @@ batter_codes = c('S' = 1, 'D' = 2, 'T' = 3,
                  'PO' = 0, 'POCS' = 0, 'OA' = 0)
 
 #Creating a mapping function to map batter_codes (basically replaces a for loop)
-#quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaulate this code
+#quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaluate this code
 batter_conditions <- map(names(batter_codes), 
                          ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)", sep="")))~batter_codes[!!.x]))
 
@@ -109,13 +109,7 @@ game_df <- game_df %>%
 #Creating vector to hold indices of new inning (lag from Dplyr is really helpful)
 new_inning = c(1, which(game_df$`Home Team` != lag(game_df$`Home Team`))) 
 
-# Assigning Onbase to 000 at start of Each inning  (Note: ifelse doesn't care about type)
-# (game_df <- game_df %>% 
-#   mutate(`Onbase` = ifelse(row_number() %in% new_inning, '000',
-#                     ifelse(`Batter Bases`==1, '001',
-#                     ifelse(`Batter Bases`==2, '010',
-#                     ifelse(`Batter Bases`==3, '100',
-#                     ifelse(`Batter Bases`==4, '000', NA)))))))
+#Creating three binary variables, First Second and Third to hold runs
 
 (game_df <- game_df %>% 
   mutate(`First` = case_when(row_number() %in% new_inning ~ 0,
@@ -140,22 +134,61 @@ Next Thing to Do is Move Runners
 
 
 ```{r Moving Runners}
-game_df %>% 
-  mutate(`Second` = case_when(lag(str_detect(`Runner Advancements`, "-2")) ~ 1, 
+game_df <- game_df %>% 
+  mutate(`First` = case_when(lag(
+                                  ((str_detect(`Runner Advancements`, ";") ==FALSE) & 
+                                  (str_detect(`Runner Advancements`, "-1")))
+                                ) ~ 1,
+                             lag(
+                                  ((str_detect(`Runner Advancements`, ";") ==FALSE) & 
+                                  (str_detect(`Runner Advancements`, "1-")))
+                                ) ~ 0, 
+                             lag(str_detect(Outcome, "SB2")) ~ 0,
+                             TRUE ~ as.numeric(First)),
+                             
+         `Second` = case_when(lag(
+                                   ((str_detect(`Runner Advancements`, ";") ==FALSE) & 
+                                   (str_detect(`Runner Advancements`, "-2")))
+                                 ) ~ 1, 
+                              lag(
+                                  ((str_detect(`Runner Advancements`, ";") ==FALSE) & 
+                                  (str_detect(`Runner Advancements`, "2-")))
+                                ) ~ 0,
+                              lag(str_detect(Outcome, "SB2")) ~ 1,
+                              lag(str_detect(Outcome, "SB3")) ~ 0,
                               TRUE ~ as.numeric(Second)),
-         `Third` = case_when(lag(str_detect(`Runner Advancements`, "-3")) ~ 1, 
-                              TRUE ~ as.numeric(Third)),
+         
+         `Third` = case_when(lag(
+                                   ((str_detect(`Runner Advancements`, ";") ==FALSE) & 
+                                   (str_detect(`Runner Advancements`, "-3")))
+                                 ) ~ 1, 
+                             lag(
+                                  ((str_detect(`Runner Advancements`, ";") ==FALSE) & 
+                                  (str_detect(`Runner Advancements`, "3-")))
+                                ) ~ 0,
+                              lag(str_detect(Outcome, "SB3")) ~ 1,
+                              lag(str_detect(Outcome, "SBH")) ~ 0,
+                              TRUE ~ as.numeric(Second)),
+         
          `Runs` = case_when(lag(str_detect(`Runner Advancements`, "-H")) ~ 
-                              lag(str_count(`Runner Advancements`,"-H"))))
+                            as.numeric(lag(str_count(`Runner Advancements`,"-H"))),
+                            lag(str_detect(Outcome, "SBH")) ~ 1))
+
+
+View(game_df)
 ```
+
+
 
 
 ```{r}
-  mutate(Onbase = if_else(str_detect(Outcome, 'S'), '001', #Creating a column to store the runners on base before the start of the at bat
-                           if_else(str_detect(Outcome, 'D'), '010',
-                           if_else(str_detect(Outcome, 'T'), '100',
-                           if_else(str_detect(Outcome, 'HR'), '000', 'NONE')))))
+str_detect(game_df$Outcome, "SB")
 ```
 
+
+
+```{r}
+rownames(game_df)
+```
 
 

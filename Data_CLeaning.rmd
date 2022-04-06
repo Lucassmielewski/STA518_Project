@@ -74,28 +74,25 @@ I or IW - Intential Walk (1)
 W - Walk (1)
 C - Catcher Interference (1)
 
+Plays not involving batter
+Bk - Balk 
+CS[Base #] - Caught Stealing
+DI - Defensive indifference
+SB[Base #] - Stolen Base
+PB - Passed Ball
+WP - Wild Pitch
+PO[Base #] - Pickoff
+POCS[Base #] - Pickoff Caught Stealing
+OA - Other Event
 ```{r Creating Batter Event Codes}
 
 batter_codes = c('S' = 1, 'D' = 2, 'T' = 3, 
                  'H' = 4, 'HR' = 4, 'DGR' = 2,
                  'E' = 1, 'HP' = 1, 'I' = 1, 
-                 'IW' = 1, 'W' = 1, 'C' = 1)
-
-# for(item in names(batter_codes)){
-#   print(batter_codes[[item]])
-# }
-# 
-# game_df %>% 
-#   mutate(`Batter Bases` = for(item in names(batter_codes)){
-#                               case_when(str_detect(Outcome, item) ~ batter_codes[[item]])
-#   }
-#   )
-# 
-# code_map <- function(column, batter_codes){
-#   for(item in names(batter_codes)){
-#     case_when(str_detect(column, item) ~ batter_codes[[item]])
-#   }
-# }
+                 'IW' = 1, 'W' = 1, 'C' = 1,
+                 'BK' = 0 , 'CS' = 0 , 'DI' = 0,
+                 'SB' = 0, 'PB' = 0, 'WP' = 0, 
+                 'PO' = 0, 'POCS' = 0, 'OA' = 0)
 
 #Creating a mapping function to map batter_codes (basically replaces a for loop)
 #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaulate this code
@@ -122,22 +119,22 @@ new_inning = c(1, which(game_df$`Home Team` != lag(game_df$`Home Team`)))
 
 (game_df <- game_df %>% 
   mutate(`First` = case_when(row_number() %in% new_inning ~ 0,
-                              lag(`Batter Bases`==1) & (is.na(`Runner Advancements`)) ~ 1,
-                              lag(`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ 0),
+                              lag(`Batter Bases`==1) ~ 1,
+                              lag(`Batter Bases`==4) ~ 0),
          `Second`= case_when(row_number() %in% new_inning ~ 0,
                              lag(`Batter Bases`==2) & (is.na(`Runner Advancements`)) ~ 1,
-                             lag(`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ 0),
+                             lag(`Batter Bases`==4) ~ 0),
          `Third`= case_when(row_number() %in% new_inning ~ 0,
                             lag(`Batter Bases`==3) & (is.na(`Runner Advancements`)) ~ 1,
-                            lag(`Batter Bases`==4) & (is.na(`Runner Advancements`)) ~ 0),
+                            lag(`Batter Bases`==4) ~ 0),
          `Outs` = case_when(row_number() %in% new_inning ~ 0)))
 
-for (i in seq_along(game_df$Outs)) if (is.na(game_df$`Batter Bases`)) game_df$Outs[i] = game_df$Outs[i] + 1
-
-game_df %>%
-  mutate(offset = cumsum(is.na(`Batter Bases`) & game_df$`Home Team` != lag(game_df$`Home Team`)))%>%
-  fill(`Outs`, .direction = "down") %>%
-  mutate(finaloutput = `Outs` + offset)
+# for (i in seq_along(game_df$Outs)) if (is.na(game_df$`Batter Bases`)) game_df$Outs[i] = game_df$Outs[i] + 1
+# 
+# game_df %>%
+#   mutate(offset = cumsum(is.na(`Batter Bases`) & game_df$`Home Team` != lag(game_df$`Home Team`)))%>%
+#   fill(`Outs`, .direction = "down") %>%
+#   mutate(finaloutput = `Outs` + offset)
 ```
 Next Thing to Do is Move Runners
 

@@ -1,0 +1,208 @@
+---
+title: "Getting Full Dataset"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r loading_pacakages}
+library(tidyverse)
+library(data.table)
+```
+
+
+```{r Team Function}
+clean_teams <- function(team){
+  
+  tsv = read_tsv(here::here("data", paste("2021",team,sep="")), col_names=FALSE)
+  #Creating tibble of length 81 that store row number of each game ID
+  row_index <- tsv %>%
+    mutate(rownumber = row_number()) %>%
+    filter(str_detect(tsv$X1, 'id,')==TRUE)
+  
+  #Create Vector of Original Data
+  team_vec = as.vector(tsv$X1)
+  
+  #Create Vector of row numbers of ID's (position in team_vec)
+  row_vec=as.vector(row_index$rownumber)
+  
+  #Creating List to each Game's data
+  team_list=list()
+  
+  #Loop through row_vec (length 81)
+  #Split team_vec into each game, decided by ID position held in row_vec
+  #Add each game vector into team_list
+  for(row in seq(row_vec+1)){
+    if(row!=81){
+      new <- team_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
+      team_list[[row]] <- new
+    }
+  }
+  return(team_list)
+}
+```
+
+
+```{r Creating function}
+
+get_results <- function(game_codes){
+  
+  plays = str_subset(game_codes, 'play')
+
+  game_df = read_csv(plays, col_names = c('Play', 
+                                'Inning', 
+                                'Home Team', 
+                                'Retro ID', 
+                                'Count on Play', 
+                                'Pitch Sequence',
+                                'Outcome'))
+  
+  game_df <- game_df %>% 
+    separate(Outcome, into = c('Outcome', 'Runner Advancements'),"[.]", extra = "merge") %>% #Creating Column to hold runner advancement codes 
+    filter(Outcome != 'NP') #Remove plays where nothing occurred
+  
+  
+  batter_codes = c('S' = 1, 'D' = 2, 'T' = 3, 
+                 'H' = 4, 'HR' = 4, 'DGR' = 2,
+                 'E' = 1, 'HP' = 1, 'I' = 1, 
+                 'IW' = 1, 'W' = 1, 'C' = 1,
+                 'BK' = 0 , 'DI' = 0, 'SB' = 0,
+                 'PB' = 0, 'WP' = 0)
+                 #'CS' = 0 , 'PO' = 0, 'POCS' = 0, 'OA' = 0) These outcomes should still result in an out so they will not fill batter bases
+
+  #Creating a mapping function to map batter_codes (basically replaces a for loop)
+  #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaluate this code
+  batter_conditions <- map(names(batter_codes), 
+                           ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)", sep="")))~batter_codes[!!.x]))
+  
+  #Applying the batter code condition to the game dataframe
+  game_df <- game_df %>% 
+    mutate(`Batter Bases` = case_when(!!!batter_conditions))
+  
+  
+  
+  #Creating vector to hold indices of new inning (lag from Dplyr is really helpful)
+  new_inning = c(1, which(game_df$`Home Team` != lag(game_df$`Home Team`))) 
+  
+  #Creating three binary variables, First Second and Third to hold runs
+  
+  game_df <- game_df %>% 
+    mutate(`First` = case_when(row_number() %in% new_inning ~ 0,
+                                lag(`Batter Bases`==1) ~ 1,
+                                lag(`Batter Bases`==4) ~ 0),
+           `Second`= case_when(row_number() %in% new_inning ~ 0,
+                               lag(`Batter Bases`==2) & (is.na(`Runner Advancements`)) ~ 1,
+                               lag(`Batter Bases`==4) ~ 0),
+           `Third`= case_when(row_number() %in% new_inning ~ 0,
+                              lag(`Batter Bases`==3) & (is.na(`Runner Advancements`)) ~ 1,
+                              lag(`Batter Bases`==4) ~ 0))
+  
+  game_df <- game_df %>% 
+  separate(`Runner Advancements`, into = c('Runner Advancements', 
+                                           'Runner Advancements1', 
+                                           'Runner Advancements2', 
+                                           'Runner Advancements3'),"[;]", extra = "merge")
+  
+  game_df <- game_df %>% 
+  mutate(`First` = case_when(   
+                                lag(str_detect(`Runner Advancements3`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements3`, "1-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements2`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements2`, "1-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements1`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements1`, "1-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements`, "1-")) ~ 0,
+
+                             #Stolen bases & Pickoffs
+                             lag(str_detect(Outcome, "SB2")) ~ 0, #Leaves First to Steal Second
+                             lag(str_detect(Outcome, "CS2")) ~ 0, #Caught Stealing at 2nd (includes POCS2)
+                             lag(str_detect(Outcome, "PO1")) ~ 0, #Picked Off of First
+                             TRUE ~ as.numeric(First)),
+                             
+         `Second` = case_when(
+                                lag(str_detect(`Runner Advancements3`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements3`, "2-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements2`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements2`, "2-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements1`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements1`, "2-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements`, "2-")) ~ 0,
+                              
+                              #Stolen Bases & Pickoffs
+                              lag(str_detect(Outcome, "SB2")) ~ 1, #Steals Second
+                              lag(str_detect(Outcome, "SB3")) ~ 0, #Leaves Second to Steal Third
+                              lag(str_detect(Outcome, "CS3")) ~ 0, #Caught Stealing at Third
+                              lag(str_detect(Outcome, "PO2")) ~ 0, #Picked Off of Second
+                              TRUE ~ as.numeric(Second)),
+         
+         `Third` = case_when(
+                                lag(str_detect(`Runner Advancements3`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements3`, "3-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements2`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements2`, "3-")) ~ 0,
+                              
+                                lag(str_detect(`Runner Advancements1`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements1`, "3-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements`, "3-")) ~ 0,
+                              
+                              #Stolen Bases & Pickoffs
+                              lag(str_detect(Outcome, "SB3")) ~ 1, #Steals Third
+                              lag(str_detect(Outcome, "SBH")) ~ 0, #Leaves Third to Steal Home
+                              lag(str_detect(Outcome, "CSH")) ~ 0, #Caught Stealing at Third
+                              lag(str_detect(Outcome, "PO3")) ~ 0, #Picked Off of Third
+                              TRUE ~ as.numeric(Third))) %>% 
+         
+  fill(First, Second, Third, .direction="down")
+  
+  
+  
+  game_df <- game_df %>% 
+    group_by(Inning, `Home Team`) %>% 
+    mutate(Outs = cumsum(is.na(`Batter Bases`))-1,
+           `Inning Runs` = sum(as.numeric(str_detect(`Runner Advancements`,"(-H)")),
+                              as.numeric(str_detect(`Runner Advancements1`,"(-H)")),
+                              as.numeric(str_detect(`Runner Advancements2`,"(-H)")),
+                              as.numeric(str_detect(`Runner Advancements3`,"(-H)")),
+                              str_detect(Outcome, "SBH"), (`Batter Bases`==4), #Steals of Home and Home Runs
+                              na.rm=TRUE))
+  
+  game_df$Outs = case_when(game_df$Outs<0 ~ 0, TRUE ~ as.numeric(game_df$Outs))
+  
+  
+  agg_df <- expand(game_df, nesting(First, Second, Third, Outs, `Inning Runs`))
+  
+  
+  return(agg_df)
+}
+```
+
+
+```{r}
+teams=list('ANA.EVA')
+games_list = map(teams, clean_teams)
+ANA_total <- rbindlist(map(games_list, get_results))
+View(games_list)
+View(ANA_total)
+```
+
+
+
+
+
+
+
+
+

@@ -194,6 +194,7 @@ get_results <- function(game_codes){
 
 ```{r getting list of teams}
 teams = list.files(here::here('data'))
+print(length(teams))
 ```
 
 
@@ -214,11 +215,15 @@ agg_total <- rbindlist(agg_list)
 
 
 ```{r}
-identical(ANA_list, games_list[[2]])
-length(games_list)
+View(agg_total)
+
+write.csv(agg_total, here::here("Results", 'Seaon Total Innings.csv'), row.names=FALSE)
 ```
 
 
+```{r}
+read_csv(here::here("Results", 'Seaon Total Innings.csv'))
+```
 
 
 

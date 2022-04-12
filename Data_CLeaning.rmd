@@ -32,12 +32,13 @@ row_vec=as.vector(row_index$rownumber)
 
 #Creating List to each Game's data
 ANA_list=list()
+print(length(row_vec))
 
 #Loop through row_vec (length 81)
 #Split ANA_vec into each game, decided by ID position held in row_vec
 #Add each game vector into ANA_list
 for(row in seq(row_vec+1)){
-  if(row!=81){
+  if(row!=length(row_vec)){
     new <- ANA_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
     ANA_list[[row]] <- new
   }
@@ -403,9 +404,6 @@ get_results <- function(game_codes){
 
 ```
 
-```{r}
-
-```
 
 
 ```{r calling game function}

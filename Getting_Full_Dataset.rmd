@@ -10,13 +10,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r loading_pacakages}
 library(tidyverse)
 library(data.table)
+options(warn=-1)
 ```
 
 
 ```{r Team Function}
 clean_teams <- function(team){
   
-  tsv = read_tsv(here::here("data", paste("2021",team,sep="")), col_names=FALSE)
+  tsv = read_tsv(here::here("data", team), col_names=FALSE)
   #Creating tibble of length 81 that store row number of each game ID
   row_index <- tsv %>%
     mutate(rownumber = row_number()) %>%
@@ -35,11 +36,12 @@ clean_teams <- function(team){
   #Split team_vec into each game, decided by ID position held in row_vec
   #Add each game vector into team_list
   for(row in seq(row_vec+1)){
-    if(row!=81){
+    if(row!=length(row_vec)){
       new <- team_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
-      team_list[[row]] <- new
+      team_list[[row]]<- new
     }
   }
+  
   return(team_list)
 }
 ```
@@ -190,15 +192,31 @@ get_results <- function(game_codes){
 ```
 
 
-```{r}
-teams=list('ANA.EVA')
-games_list = map(teams, clean_teams)
-ANA_total <- rbindlist(map(games_list, get_results))
-View(games_list)
-View(ANA_total)
+```{r getting list of teams}
+teams = list.files(here::here('data'))
 ```
 
 
+```{r Running function}
+oldw <- getOption("warn")
+options(warn = -1)
+
+games_list = map(teams, clean_teams)
+agg_list=list()
+for(i in 1:length(games_list)){
+  agg_list[[i]] <- rbindlist(map(games_list[[i]], get_results))
+}
+agg_total <- rbindlist(agg_list)
+```
+
+
+
+
+
+```{r}
+identical(ANA_list, games_list[[2]])
+length(games_list)
+```
 
 
 

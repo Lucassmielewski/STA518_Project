@@ -180,7 +180,7 @@ get_results <- function(game_codes){
                               as.numeric(str_detect(`Runner Advancements3`,"(-H)")),
                               str_detect(Outcome, "SBH"), (`Batter Bases`==4), #Steals of Home and Home Runs
                               na.rm=TRUE))
-  
+  stopifnot(game_df$Outs >=3)
   game_df$Outs = case_when(game_df$Outs<0 ~ 0, TRUE ~ as.numeric(game_df$Outs))
   
   

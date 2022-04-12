@@ -1,0 +1,36 @@
+---
+title: "Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r loading_pacakages}
+library(tidyverse)
+
+```
+
+```{r Importing Data}
+(df <- read_csv(here::here("Results", 'Seaon Total Innings.csv')))
+```
+
+```{r Grouping}
+df <- df %>% 
+  mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
+
+
+df_bases <- df %>% 
+  group_by(First, Second, Third, Outs) %>% 
+  summarise(Runs = sum(`Inning Runs`),
+         Occurences = n(),
+         `Probabilty of Scoring` = mean(Scored))
+    
+(df_bases %>%  
+  mutate(`Runs Expected` = Runs/Occurences))
+  
+```
+

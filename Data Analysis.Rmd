@@ -64,17 +64,90 @@ p <- df_group %>%
   geom_tile()
 ggplotly(p)
 ```
-```
 
 ```{r}
 df_bases <- df %>% 
-  unite(Onbase, First:Third) %>% 
-  mutate(Outs = as.factor(Outs))
-  
-  
-p <- df_bases %>% 
-  ggplot(aes(x=`Inning Runs`, color=Outs))+
-  geom_density()
-ggplotly(p)
+  unite(Onbase, First:Third)
+
+df_outs <- df_group <- df %>% 
+  group_by(First, Second, Third, Outs) %>% 
+  summarise(Runs = sum(`Inning Runs`),
+         Occurences = n(),
+         `Probabilty of Scoring` = mean(Scored))
 ```
+
+
+```{r user-input run Simulation}
+
+print('Hello how many Outs are there in the Inning?')
+outs=readline()
+if(outs<0){
+  print('There are no negative outs!')
+  break
+}else if (outs>2){
+    print('The inning is already over!')
+    break
+}else{
+  cat('You said ', outs, ' out(s).')
+  print('Where are the runners on base?')
+  onbase=readline()
+  
+  if((onbase=='None') | (onbase=='No Runners')){
+    runners='0_0_0'
+  }else if(onbase=='First'){
+    runners='1_0_0'
+  }else if(onbase=='First and Second'){
+    runners='1_1_0'
+  }else if(onbase=='First and Third'){
+    runners='1_0_1'
+  }else if(onbase=='Second'){
+    runners='0_1_0'
+  }else if(onbase=='Second and Third'){
+    runners='0_1_1'
+  }else if(onbase=='Third'){
+    runners='0_0_1'
+  }else if(onbase=='Bases Loaded'){
+    runners='0_1_1'
+  }else{
+    print('Invalid Answer! Please Select from No Runners, First, Second, Third, Bases Loaded. You can use "and" to signal multiple runners on base.')
+    break
+  }
+}
+
+expected_runs <- round(as.numeric(runs_expected_matrix %>% 
+  filter(Onbase==runners) %>% 
+  select(paste('Outs:', outs))),4)
+
+run_prob <- round(as.numeric(run_prob_matrix %>% 
+  filter(Onbase==runners) %>% 
+  select(paste('Outs:', outs)))*100, 3)
+
+print(paste('With ', outs, ' outs and runners on ', onbase,'. You are expected to score ', expected_runs, 'runs in this inning!'))
+cat('The probability you score at least 1 run is', run_prob, '%')
+
+print("Alright Let's Simulate It!")
+
+runs_dist <- df_bases %>% 
+  filter((Onbase==runners) & (Outs == outs)) %>%
+  select(`Inning Runs`)
+
+runs_scored = as.numeric(sample_n(runs_dist, 1))
+
+
+if(runs_scored > expected_runs){
+  cat('You scored', runs_scored, 'run(s). Congratuations you scored more than expected!')
+}else if(runs_scored > 0){
+  cat('You scored', runs_scored, 'run(s)!')
+}else{
+  cat('Bummer! You scored', runs_scored, 'runs. Try again next time.')
+  }
+
+
+
+print('All Done! Thank you for playing!')
+break
+```
+
+
+
 

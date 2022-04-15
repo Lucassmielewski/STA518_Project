@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r loading_pacakages}
 library(tidyverse)
 library(data.table)
+library(assertr)
 ```
 
 ```{r}
@@ -51,13 +52,26 @@ for(row in seq(row_vec+1)){
 #Keep Only element in game that start with 'play'
 plays = str_subset(ANA_list[[1]], 'play')
 
-game_df = read_csv(plays, col_names = c('Play', 
-                              'Inning', 
-                              'Home Team', 
-                              'Retro ID', 
-                              'Count on Play', 
-                              'Pitch Sequence',
-                              'Outcome'))
+#Works on GVSU R Server not on Laptop?
+# game_df = read_csv(plays, col_names = c('Play', 
+#                               'Inning', 
+#                               'Home Team', 
+#                               'Retro ID', 
+#                               'Count on Play', 
+#                               'Pitch Sequence',
+#                               'Outcome'))
+
+#Works on Laptop
+game_df <- as.tibble(plays) %>% 
+  separate(value, into=c('Play', 
+                         'Inning', 
+                         'Home Team', 
+                         'Retro ID', 
+                         'Count on Play', 
+                         'Pitch Sequence',
+                         'Outcome'), 
+            sep=',')
+
 
 game_df <- game_df %>% 
   separate(Outcome, into = c('Outcome', 'Runner Advancements'),"[.]", extra = "merge") %>% #Creating Column to hold runner advancement codes 
@@ -100,11 +114,15 @@ batter_codes = c('S' = 1, 'D' = 2, 'T' = 3,
 #Creating a mapping function to map batter_codes (basically replaces a for loop)
 #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaluate this code
 batter_conditions <- map(names(batter_codes), 
-                         ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)", sep="")))~batter_codes[!!.x]))
+                         ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)|E", sep="")))~batter_codes[!!.x]))
 
 #Applying the batter code condition to the game dataframe
 game_df <- game_df %>% 
   mutate(`Batter Bases` = case_when(!!!batter_conditions))
+```
+
+```{r}
+game_df
 ```
 
 
@@ -265,13 +283,25 @@ get_results <- function(game_codes){
   
   plays = str_subset(game_codes, 'play')
 
-  game_df = read_csv(plays, col_names = c('Play', 
-                                'Inning', 
-                                'Home Team', 
-                                'Retro ID', 
-                                'Count on Play', 
-                                'Pitch Sequence',
-                                'Outcome'))
+  #Works on GVSU R Server not on Laptop?
+    # game_df = read_csv(plays, col_names = c('Play', 
+    #                               'Inning', 
+    #                               'Home Team', 
+    #                               'Retro ID', 
+    #                               'Count on Play', 
+    #                               'Pitch Sequence',
+    #                               'Outcome'))
+    
+    #Works on Laptop
+    game_df <- as.tibble(plays) %>% 
+      separate(value, into=c('Play', 
+                             'Inning', 
+                             'Home Team', 
+                             'Retro ID', 
+                             'Count on Play', 
+                             'Pitch Sequence',
+                             'Outcome'), 
+                sep=',')
   
   game_df <- game_df %>% 
     separate(Outcome, into = c('Outcome', 'Runner Advancements'),"[.]", extra = "merge") %>% #Creating Column to hold runner advancement codes 
@@ -289,12 +319,13 @@ get_results <- function(game_codes){
   #Creating a mapping function to map batter_codes (basically replaces a for loop)
   #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaluate this code
   batter_conditions <- map(names(batter_codes), 
-                           ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)", sep="")))~batter_codes[!!.x]))
+                           ~quo(str_starts(Outcome, regex(paste(!!.x,"+([0-9]|/|$)|E|(W+)", sep="")))~batter_codes[!!.x]))
   
   #Applying the batter code condition to the game dataframe
   game_df <- game_df %>% 
     mutate(`Batter Bases` = case_when(!!!batter_conditions))
   
+
   
   
   #Creating vector to hold indices of new inning (lag from Dplyr is really helpful)
@@ -381,7 +412,12 @@ get_results <- function(game_codes){
          
   fill(First, Second, Third, .direction="down")
   
-  
+  #OUTS ERROR TESTING
+  game_df <- game_df %>% 
+    mutate(`Batter Bases` = case_when((str_detect(`Runner Advancements`, "B-")) | 
+                                    (str_detect(`Runner Advancements1`, "B-")) |
+                                    (str_detect(`Runner Advancements2`, "B-")) |
+                                    (str_detect(`Runner Advancements3`, "B-")) ~ 1, TRUE ~ as.numeric(`Batter Bases`)))
   
   game_df <- game_df %>% 
     group_by(Inning, `Home Team`) %>% 
@@ -393,8 +429,20 @@ get_results <- function(game_codes){
                               str_detect(Outcome, "SBH"), (`Batter Bases`==4), #Steals of Home and Home Runs
                               na.rm=TRUE))
   
-  game_df$Outs = case_when(game_df$Outs<0 ~ 0, TRUE ~ as.numeric(game_df$Outs))
   
+  game_df$Outs = as.integer(case_when(game_df$Outs<0 ~ 0, TRUE ~ as.numeric(game_df$Outs)))
+  # cat('Is Numeric?', is.numeric(game_df$Outs))
+  
+  #OUTS ERROR TESTING - NOTICED ERRORS WERE NOT WORKING
+  bad_df <- game_df %>% 
+    filter((Outs >= 3) | (Outs<0))
+  ind = ((game_df$Outs >= 3) | (game_df$Outs<0))
+  if(nrow(game_df[ind,])>0){
+    print(game_df %>% 
+            select(c(Outcome, `Runner Advancements`, `Runner Advancements1`, `Batter Bases`,
+                                    First, Second, Third, `Inning Runs`, Outs)))
+  }
+
   
   agg_df <- expand(game_df, nesting(First, Second, Third, Outs, `Inning Runs`))
   
@@ -408,6 +456,22 @@ get_results <- function(game_codes){
 
 ```{r calling game function}
 ANA_total <- rbindlist(map(ANA_list, get_results))
-View(ANA_total)
 ```
+
+
+
+
+
+```{r}
+ANA_total
+```
+
+
+
+```{r}
+agg_total %>% 
+  assert(within_bounds(0,3), Outs)
+```
+
+
 

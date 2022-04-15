@@ -11,7 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r loading_pacakages}
 library(tidyverse)
-
+library(ggplot2)
+library(plotly)
 ```
 
 ```{r Importing Data}
@@ -23,14 +24,57 @@ df <- df %>%
   mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
 
 
-df_bases <- df %>% 
+df_group <- df %>% 
   group_by(First, Second, Third, Outs) %>% 
   summarise(Runs = sum(`Inning Runs`),
          Occurences = n(),
          `Probabilty of Scoring` = mean(Scored))
     
-(df_bases %>%  
-  mutate(`Runs Expected` = Runs/Occurences))
+df_group <- df_group %>%  
+  mutate(`Runs Expected` = Runs/Occurences) %>% 
+  unite(Onbase, First:Third) 
+
+runs_expected_matrix <- df_group %>% 
+  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Runs Expected`, names_prefix='Outs: ', names_sep=' ') %>% 
+  arrange(desc('Outs: 0'))
   
+
+run_prob_matrix <- df_group %>% 
+  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Probabilty of Scoring`, names_prefix='Outs: ', names_sep=' ')
+
+
+View(df_group)
+View(runs_expected_matrix)
+View(run_prob_matrix)
+  
+```
+
+```{r}
+ggplot(df_group, aes(x=Onbase, y=`Runs Expected`))+
+  geom_boxplot()
+```
+
+```{r}
+ggplot(df_group, aes(y=Onbase, fill=`Runs Expected`, x=Outs))+
+  geom_tile()
+```
+```{r}
+p <- df_group %>% 
+  ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
+  geom_tile()
+ggplotly(p)
+```
+```
+
+```{r}
+df_bases <- df %>% 
+  unite(Onbase, First:Third) %>% 
+  mutate(Outs = as.factor(Outs))
+  
+  
+p <- df_bases %>% 
+  ggplot(aes(x=`Inning Runs`, color=Outs))+
+  geom_density()
+ggplotly(p)
 ```
 

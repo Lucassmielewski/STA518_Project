@@ -6,19 +6,22 @@ runtime: shiny
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(warn = -1)
+options(shiny.trace = FALSE)
 ```
 
 ```{r Lodaing Packages, echo=FALSE}
 library(tidyverse)
 library(shiny)
+library(plotly)
 ```
 
 ```{r Importing Data, echo=FALSE}
-df <- read_csv(here::here('~/STA 518/STA518_Project/Results/Seaon Total Innings.csv'))
+df1 <- read_csv(here::here('~/STA 518/STA518_Project/Results/Seaon Total Innings.csv'))
 ```
 
 ```{r combine runners, echo=FALSE}
-df <- df %>% 
+df <- df1 %>% 
   unite(Onbase, First:Third) %>% 
   mutate(`top_bot` = case_when(`Home Team` ==0 ~ "Top",
                                `Home Team` ==1 ~ "Bottom"),
@@ -30,6 +33,31 @@ df <- df %>%
                              Onbase == '0_1_1' ~ "Second and Third",
                              Onbase == '0_0_1' ~ "Third",
                              Onbase == '1_1_1' ~ "Bases Loaded"))
+
+```
+
+```{r formating df1, ecHo=FALSE}
+df1 <- df1 %>% 
+  mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
+
+
+df_group <- df1 %>% 
+  group_by(First, Second, Third, Outs) %>% 
+  summarise(Runs = sum(`Inning Runs`),
+         Occurences = n(),
+         `Probabilty of Scoring` = mean(Scored))
+    
+df_group <- df_group %>%  
+  mutate(`Runs Expected` = Runs/Occurences) %>% 
+  unite(Onbase, First:Third) 
+
+runs_expected_matrix <- df_group %>% 
+  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Runs Expected`, names_prefix='Outs: ', names_sep=' ') %>% 
+  arrange(desc('Outs: 0'))
+  
+
+run_prob_matrix <- df_group %>% 
+  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Probabilty of Scoring`, names_prefix='Outs: ', names_sep=' ')
 
 ```
 
@@ -45,8 +73,8 @@ ui <- fluidPage(
     
     sidebarPanel(
       "Selections",
-  # sliderInput("n_inning", label = "Inning:",
-  #             min = 1, max = 9, value = 1, step = 1),
+  sliderInput("n_inning", label = "Inning:",
+              min = 1, max = 9, value = 1, step = 1),
   
   radioButtons("top_or_bot", label = "Top or Bottom of Inning:",
               choices = c('Top', 'Bottom')),
@@ -84,7 +112,7 @@ server <- function(input, output, session){
     ggplot(
       df %>% 
         filter(
-          # (Inning == input$n_inning) &
+          (Inning == input$n_inning) &
              (top_bot == input$top_or_bot) &
              (Outs == input$n_outs) &
              (runners == input$base_runners)) %>%
@@ -99,41 +127,26 @@ server <- function(input, output, session){
 
 ```
 
-```{r}
+```{r running shiny function, echo=FALSE}
+shinyApp(ui, server)
+```
 
-df <- df %>% 
-  mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
 
-
-df_group <- df %>% 
-  group_by(First, Second, Third, Outs) %>% 
-  summarise(Runs = sum(`Inning Runs`),
-         Occurences = n(),
-         `Probabilty of Scoring` = mean(Scored))
-    
-df_group <- df_group %>%  
-  mutate(`Runs Expected` = Runs/Occurences) %>% 
-  unite(Onbase, First:Third) 
-
-runs_expected_matrix <- df_group %>% 
-  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Runs Expected`, names_prefix='Outs: ', names_sep=' ') %>% 
-  arrange(desc('Outs: 0'))
-  
-
-run_prob_matrix <- df_group %>% 
-  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Probabilty of Scoring`, names_prefix='Outs: ', names_sep=' ')
-
+```{r Runs Expected Matrix}
 p <- df_group %>% 
-  ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
+  ggplot(aes(y=Onbase, fill=`Runs Expected`, x=Outs))+
   geom_tile()
 ggplotly(p)
 
 ```
 
-```{r echo=FALSE}
-shinyApp(ui, server)
-```
 
+```{r Probability of Scoring Matrix}
+p <- df_group %>% 
+  ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
+  geom_tile()
+ggplotly(p)
+```
 
 
 

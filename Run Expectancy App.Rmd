@@ -1,0 +1,123 @@
+---
+title: "Run Expectancy App"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Lodaing Packages, echo=FALSE}
+library(tidyverse)
+library(shiny)
+```
+
+```{r Importing Data, echo=FALSE}
+(df <- read_csv(here::here('~/STA 518/STA518_Project/Results/Seaon Total Innings.csv')))
+```
+
+```{r combine runners, echo=FALSE}
+df <- df %>% 
+  unite(Onbase, First:Third) %>% 
+  mutate(`top_bot` = case_when(`Home Team` ==0 ~ "Top",
+                               `Home Team` ==1 ~ "Bottom"),
+         runners = case_when(Onbase == '0_0_0' ~ "No Runners",
+                             Onbase == '1_0_0' ~ "First",
+                             Onbase == '1_1_0' ~ "First and Second",
+                             Onbase == '1_0_1' ~ "First and Third",
+                             Onbase == '0_1_0' ~ "Second",
+                             Onbase == '0_1_1' ~ "Second and Third",
+                             Onbase == '0_0_1' ~ "Third",
+                             Onbase == '1_1_1' ~ "Bases Loaded"))
+
+df
+```
+
+
+```{r Run_inputs, echo=FALSE}
+inputPanel(
+  sliderInput("n_inning", label = "Inning:",
+              min = 1, max = 9, value = 1, step = 1),
+  
+  selectInput("top_or_bot", label = "Top or Bottom of Inning:",
+              choices = c('Top', 'Bottom'), selected = 'Top'),
+  
+  selectInput("n_outs", label = "Number of Outs:",
+              choices = c(0, 1, 2), selected = 0),
+  
+  selectInput("base_runners", label = "Base Runners:",
+              choices = c('No Runners','First', 'Second', 'Third', 'First and Second',
+                          'First and Third', 'Second and Third', 'Bases Loaded'), selected = "No Runners"),
+)
+
+
+dataInput <- reactive({ getSymbols(input$symb, src = "yahoo",
+        from = input$dates[1],
+        to = input$dates[2],
+        auto.assign = FALSE)
+#   print(input$base_runners)
+#   
+# if((input$base_runners=="No Runners")){
+#   runners='0_0_0'
+# }else if(input$base_runners=='First'){
+#   runners='1_0_0'
+# }else if(input$base_runners=='First and Second'){
+#   runners='1_1_0'
+# }else if(input$base_runners=='First and Third'){
+#   runners='1_0_1'
+# }else if(input$base_runners=='Second'){
+#   runners='0_1_0'
+# }else if(input$base_runners=='Second and Third'){
+#   runners='0_1_1'
+# }else if(input$base_runners=='Third'){
+#   runners='0_0_1'
+# }else if(input$base_runners=='Bases Loaded'){
+#   runners='1_1_1'
+# }
+
+# df %>% 
+#   filter((Inning == input$n_inning) &
+#          (top_bot == input$top_or_bot) &
+#          (Outs == input$n_outs) &
+#          (runners == input$base_runners)) %>% 
+#   select(`Inning Runs`)
+
+# 
+#   hist(plot_data$`Inning Runs`, probability = TRUE,
+#        xlab = "Runs in Inning", main = "Run Expectancy")
+
+  # dens <- density(faithful$eruptions, adjust = input$bw_adjust)
+  # lines(dens, col = "blue")
+})
+# print(plot_data)
+renderPlot({
+  hist(dataInput(), probability = TRUE,
+       xlab = "Runs in Inning", main = "Run Expectancy")
+})
+
+```
+
+
+
+## Embedded Application
+
+It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+
+```{r tabsets, echo=FALSE}
+shinyAppDir(
+  system.file("examples/06_tabsets", package = "shiny"),
+  options = list(
+    width = "100%", height = 550
+  )
+)
+```
+
+Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
+
+You can also use the `shinyApp` function to define an application inline rather then in an external directory.
+
+In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
+
+
+

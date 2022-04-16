@@ -1,17 +1,22 @@
 ---
-title: "Final Rlection"
+title: "Final Relection"
 author: "Lucas Smielewski"
 date: "4/15/2022"
-output: pdf_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r Loading Packages, echo=FALSE}
+```{r Loading Packages, echo=FALSE, include=FALSE}
 library(tidyverse)
+library(data.table)
 library(plotly)
+library(shiny)
 ```
 
 
@@ -32,5 +37,398 @@ ANA = read_tsv(here::here("data", "2021ANA.EVA"), col_names=FALSE)
 head(ANA)
 ```
 
-  After reviewing the coded data, I knew this project was going to be a long process and I was right, it was. But while working on this project in the past few months as well as completeing the in-class activities earlier in the semester, I have gained a lot of experience using R, a software I plan to use extensively in my job following graduation. In this document, I will go through a few of the steps I took to complete my project and use these to eexhibit 
+  After reviewing the coded data, I knew this project was going to be a long process and I was right, it was. But while working on this project in the past few months as well as completing the in-class activities earlier in the semester, I have gained a lot of experience using R, a software I plan to use extensively in my job following graduation. In this document, I will go through a few of the steps I took to complete my project and use these to exhibit my compression of the following course objectives: Import, manage, and clean data.
+Create graphical displays and numerical summaries of data for exploratory analysis and presentations.
+Write R programs for simulations from probability models and randomization-based experiments.
+Use source documentation and other resources to troubleshoot and extend R programs.
+Write clear, efficient, and well-documented R programs.
+
+
+  This project included a large amount of data managing and cleaning, seeing that the cleaning process entailed converting encoded text files into useable tabular data sets. The embedded code below was my finalized function that took the list text data files and formatting them into a list of tabular data sets, one for each game a team played. The end result was multiple lists holding each game within a list storing each team.
   
+```{r Creatinf Functiosn}
+clean_teams <- function(team){
+  
+  tsv = read_tsv(here::here("data", team), col_names=FALSE)
+  #Creating tibble of length 81 that store row number of each game ID
+  row_index <- tsv %>%
+    mutate(rownumber = row_number()) %>%
+    filter(str_detect(tsv$X1, 'id,')==TRUE)
+  
+  #Create Vector of Original Data
+  team_vec = as.vector(tsv$X1)
+  
+  #Create Vector of row numbers of ID's (position in team_vec)
+  row_vec=as.vector(row_index$rownumber)
+  
+  #Creating List to each Game's data
+  team_list=list()
+  
+  #Loop through row_vec (length 81)
+  #Split team_vec into each game, decided by ID position held in row_vec
+  #Add each game vector into team_list
+  for(row in seq(row_vec+1)){
+    if(row!=length(row_vec)){
+      new <- team_vec[c(row_vec[row]:(row_vec[(row+1)]-1))]
+      team_list[[row]]<- new
+    }
+  }
+  
+  return(team_list)
+}
+
+get_results <- function(game_codes){
+  
+  plays = str_subset(game_codes, 'play')
+
+  #Works on GVSU R Server not on Laptop?
+  # game_df = read_csv(plays, col_names = c('Play', 
+  #                               'Inning', 
+  #                               'Home Team', 
+  #                               'Retro ID', 
+  #                               'Count on Play', 
+  #                               'Pitch Sequence',
+  #                               'Outcome'))
+  
+  #Works on Laptop
+  game_df <- as.tibble(plays) %>% 
+    separate(value, into=c('Play', 
+                           'Inning', 
+                           'Home Team', 
+                           'Retro ID', 
+                           'Count on Play', 
+                           'Pitch Sequence',
+                           'Outcome'), 
+              sep=',')
+  
+  game_df <- game_df %>% 
+    #Creating Column to hold runner advancement codes
+    separate(Outcome, into = c('Outcome', 'Runner Advancements'),"[.]", extra = "merge") %>%  
+    filter(Outcome != 'NP') #Remove plays where nothing occurred
+  
+  
+  batter_codes = c('S' = 1, 'D' = 2, 'T' = 3, 
+                 'H' = 4, 'HR' = 4, 'DGR' = 2,
+                 'E' = 1, 'HP' = 1, 'I' = 1, 
+                 'IW' = 1, 'W' = 1, 'C' = 1,
+                 'BK' = 0 , 'DI' = 0, 'SB' = 0,
+                 'PB' = 0, 'WP' = 0, 'OA'=0)
+  #These outcomes should still result in an out so they will not fill batter bases
+                 #'CS' = 0 , 'PO' = 0, 'POCS' = 0, 'OA' = 0) 
+
+  #Creating a mapping function to map batter_codes (basically replaces a for loop)
+  #quo saves this condition rather than evaluating it. The !! and !!! are how you actually evaluate this code
+  batter_conditions <- map(names(batter_codes), 
+                           ~quo(str_starts(Outcome, 
+                                           regex(paste(!!.x,"+([0-9]|/|$)|E|(W+)|(SBH;)", 
+                                                       sep="")))~batter_codes[!!.x]))
+  
+  #Applying the batter code condition to the game dataframe
+  game_df <- game_df %>% 
+    mutate(`Batter Bases` = case_when(!!!batter_conditions))
+  
+  
+  
+  #Creating vector to hold indices of new inning (lag from Dplyr is really helpful)
+  new_inning = c(1, which(game_df$`Home Team` != lag(game_df$`Home Team`))) 
+  
+  #Creating three binary variables, First Second and Third to hold runs
+  
+  game_df <- game_df %>% 
+    mutate(`First` = case_when(row_number() %in% new_inning ~ 0,
+                                lag(`Batter Bases`==1) ~ 1,
+                                lag(`Batter Bases`==4) ~ 0),
+           `Second`= case_when(row_number() %in% new_inning ~ 0,
+                               lag(`Batter Bases`==2) & (is.na(`Runner Advancements`)) ~ 1,
+                               lag(`Batter Bases`==4) ~ 0),
+           `Third`= case_when(row_number() %in% new_inning ~ 0,
+                              lag(`Batter Bases`==3) & (is.na(`Runner Advancements`)) ~ 1,
+                              lag(`Batter Bases`==4) ~ 0))
+  
+  game_df <- game_df %>% 
+  separate(`Runner Advancements`, into = c('Runner Advancements', 
+                                           'Runner Advancements1', 
+                                           'Runner Advancements2', 
+                                           'Runner Advancements3'),"[;]", extra = "merge")
+  
+  game_df <- game_df %>% 
+  mutate(`First` = case_when(   
+                                lag(str_detect(`Runner Advancements3`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements3`, "1-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements2`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements2`, "1-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements1`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements1`, "1-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements`, "-1")) ~ 1,
+                                lag(str_detect(`Runner Advancements`, "1-")) ~ 0,
+
+                             #Stolen bases & Pickoffs
+                             lag(str_detect(Outcome, "SB2")) ~ 0, #Leaves First to Steal Second
+                             lag(str_detect(Outcome, "CS2")) ~ 0, #Caught Stealing at 2nd (includes POCS2)
+                             lag(str_detect(Outcome, "PO1")) ~ 0, #Picked Off of First
+                             TRUE ~ as.numeric(First)),
+                             
+         `Second` = case_when(
+                                lag(str_detect(`Runner Advancements3`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements3`, "2-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements2`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements2`, "2-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements1`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements1`, "2-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements`, "-2")) ~ 1,
+                                lag(str_detect(`Runner Advancements`, "2-")) ~ 0,
+                              
+                              #Stolen Bases & Pickoffs
+                              lag(str_detect(Outcome, "SB2")) ~ 1, #Steals Second
+                              lag(str_detect(Outcome, "SB3")) ~ 0, #Leaves Second to Steal Third
+                              lag(str_detect(Outcome, "CS3")) ~ 0, #Caught Stealing at Third
+                              lag(str_detect(Outcome, "PO2")) ~ 0, #Picked Off of Second
+                              TRUE ~ as.numeric(Second)),
+         
+         `Third` = case_when(
+                                lag(str_detect(`Runner Advancements3`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements3`, "3-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements2`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements2`, "3-")) ~ 0,
+                              
+                                lag(str_detect(`Runner Advancements1`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements1`, "3-")) ~ 0,
+                                
+                                lag(str_detect(`Runner Advancements`, "-3")) ~ 1,
+                                lag(str_detect(`Runner Advancements`, "3-")) ~ 0,
+                              
+                              #Stolen Bases & Pickoffs
+                              lag(str_detect(Outcome, "SB3")) ~ 1, #Steals Third
+                              lag(str_detect(Outcome, "SBH")) ~ 0, #Leaves Third to Steal Home
+                              lag(str_detect(Outcome, "CSH")) ~ 0, #Caught Stealing at Third
+                              lag(str_detect(Outcome, "PO3")) ~ 0, #Picked Off of Third
+                              TRUE ~ as.numeric(Third))) %>% 
+         
+  fill(First, Second, Third, .direction="down")
+  
+  #OUTS ERROR TESTING
+  game_df <- game_df %>% 
+    mutate(`Batter Bases` = case_when((str_detect(`Runner Advancements`, "B")) | 
+                                    (str_detect(`Runner Advancements1`, "B")) |
+                                    (str_detect(`Runner Advancements2`, "B")) |
+                                    (str_detect(`Runner Advancements3`, "B")) ~ 1, 
+                                    TRUE ~ as.numeric(`Batter Bases`)))
+  
+  game_df <- game_df %>% 
+    group_by(Inning, `Home Team`) %>% 
+    mutate(Outs = cumsum(is.na(`Batter Bases`))-1,
+           `Inning Runs` = sum(as.numeric(str_detect(`Runner Advancements`,"(-H)")),
+                              as.numeric(str_detect(`Runner Advancements1`,"(-H)")),
+                              as.numeric(str_detect(`Runner Advancements2`,"(-H)")),
+                              as.numeric(str_detect(`Runner Advancements3`,"(-H)")),
+                              #Steals of Home and Home Runs
+                              str_detect(Outcome, "SBH"), (`Batter Bases`==4), 
+                              na.rm=TRUE))
+  
+  game_df$Outs = case_when(game_df$Outs<0 ~ 0, TRUE ~ as.numeric(game_df$Outs))
+
+  #OUTS ERROR TESTING - NOTICED ERRORS WERE NOT WORKING
+  ind = ((game_df$Outs >= 3) | (game_df$Outs<0))
+  if(nrow(game_df[ind,])>0){
+    print(game_df %>% 
+            select(c(Outcome, `Runner Advancements`, `Runner Advancements1`, `Batter Bases`,
+                                    First, Second, Third, `Inning Runs`, Outs)))
+  }
+  
+  agg_df <- expand(game_df, nesting(First, Second, Third, Outs, `Inning Runs`))
+  
+  
+  return(agg_df)
+}
+```
+
+  
+  Finally after attaining the long list of play-by-play game data sets, they were condensed into one final data set holding every combination of innings, outs, and base runners. An sample of this final data set can be seen below.
+```{r Running Functions, echo=FALSE}
+options(warn = -1)
+teams = list.files(here::here('data'))
+
+games_list = map(teams, clean_teams)
+agg_list=list()
+for(i in 1:length(games_list)){
+  agg_list[[i]] <- rbindlist(map(games_list[[i]], get_results))
+}
+agg_total <- rbindlist(agg_list)
+```
+  
+```{r}
+head(agg_total)
+```
+
+These two code chunks not only show the strides I have taken over the course of the semester in my ability to import, manage, and clean data in R, but also my ability to write user-create functions that can be understood and reproduced by the reader. I felt that I was behind in various points throughout the semester, but after working through a larger-scale comprehensive project I feel much more comfortable with the program. Iterating through the large amount of text file and being able to condense them together also show the ability to run simulations and functions within R. After attaining this final data set. I first wrote to into my files as a csv in order to not have to run the entire program again and then started my analysis. I started my analysis by creating exploratory visualizations to decide the route I wanted to take. The code chunks below show the steps I took to create a few of these graphics. 
+
+```{r Exploratory Analysis}
+df <- read_csv(here::here('Results','Seaon Total Innings.csv'))
+
+
+df <- df %>% 
+  mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
+
+
+df_group <- df %>% 
+  group_by(First, Second, Third, Outs) %>% 
+  summarise(Runs = sum(`Inning Runs`),
+         Occurences = n(),
+         `Probabilty of Scoring` = mean(Scored))
+    
+df_group <- df_group %>%  
+  mutate(`Runs Expected` = Runs/Occurences) %>% 
+  unite(Onbase, First:Third) 
+
+runs_expected_matrix <- df_group %>% 
+  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Runs Expected`, names_prefix='Outs: ', names_sep=' ')
+
+  
+
+run_prob_matrix <- df_group %>% 
+  pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Probabilty of Scoring`, names_prefix='Outs: ', names_sep=' ')
+```
+
+
+```{r Runs Expected Matrix, echo=FALSE}
+p <- df_group %>% 
+  ggplot(aes(y=Onbase, fill=`Runs Expected`, x=Outs))+
+  geom_tile()+
+  scale_fill_gradient2(low="red", high="blue", mid="white") +
+  ggtitle("Run Expectancy Matrix") +
+  xlab("Number of Outs") + ylab("Base Runners")
+ggplotly(p)
+```
+  
+```{r Probability of Scoring Matrix, echo=FALSE}
+p <- df_group %>% 
+  ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
+  geom_tile() +
+  scale_fill_gradient(low="red", high="green") +
+  ggtitle("Probability of Scoring Matrix") +
+  xlab("Number of Outs") + ylab("Base Runners")
+ggplotly(p)
+```
+  
+
+These graphs were a part of my main goal of this project and I am very glad I was able to accomplish this. These show how the expected number of runs in an inning for a MLB game in the 2021 varying based on the combination between the locations of runners and the number of outs in said inning. I also found the probability of scoring at least one run in the inning for this same matrix. While working on these visualizations I found documentation for the package, Plotly, a software I had used previously in Python. I especially enjoyed incorporated this into my project because I find interactive plots much more useful than static plots when visualizing complex data situations. These graphs along with the work I did to build an interactive shiny app, I will get into this part next, are the reasons that I feel I have accomplished the objectives of creating graphical displays and numerical summaries of data for exploratory analysis and presentations as well as using source documentation and other resources to troubleshoot and extend R programs. 
+
+Finally I get to the most intriguing part of my project, building an interactive Shiny app. Even though I was able to produce a simple app producing all of the same concepts that I had set out to do at the start of my project, it gives me error when opening the application from the shinyapps.io server, so this is something I will have to investigate further. Nevertheless my Shiny app will run and be produced correctly when launched from my Rstudio session the code for this can be seen below. 
+  
+```{r Shiny App}
+#Reading in  Results Dataset
+df1 <- read_csv(here::here('Results','Seaon Total Innings.csv'))
+
+
+df <- df1 %>% 
+  unite(Onbase, First:Third) %>% 
+  mutate(`top_bot` = case_when(`Home Team` ==0 ~ "Top",
+                               `Home Team` ==1 ~ "Bottom"),
+         runners = case_when(Onbase == '0_0_0' ~ "No Runners",
+                             Onbase == '1_0_0' ~ "First",
+                             Onbase == '1_1_0' ~ "First and Second",
+                             Onbase == '1_0_1' ~ "First and Third",
+                             Onbase == '0_1_0' ~ "Second",
+                             Onbase == '0_1_1' ~ "Second and Third",
+                             Onbase == '0_0_1' ~ "Third",
+                             Onbase == '1_1_1' ~ "Bases Loaded"))
+
+#Setting up Shiny App and gathering Inputs
+ui <- fluidPage(
+  theme = bslib::bs_theme(bootswatch = "flatly"),
+  titlePanel(
+    "Run Expectancy"
+  ),
+  
+  sidebarLayout(
+    
+    sidebarPanel(
+      "Selections",
+      sliderInput("n_inning", label = "Inning:",
+                  min = 1, max = 9, value = 1, step = 1),
+      
+      radioButtons("top_or_bot", label = "Top or Bottom of Inning:",
+                   choices = c('Top', 'Bottom')),
+      
+      radioButtons("n_outs", label = "Number of Outs:",
+                   choices = c(0, 1, 2)),
+      
+      selectInput("base_runners", label = "Base Runners:",
+                  choices = c('No Runners','First', 'Second', 'Third', 'First and Second',
+                              'First and Third', 'Second and Third', 'Bases Loaded'), selected = "No Runners")
+    ),
+    
+    mainPanel(
+      plotOutput("plot"),
+      # tabPanel(tableOutput("static"))
+      
+      plotlyOutput('matrix'),
+      plotlyOutput('matrix1')
+    
+    )
+  )
+)
+
+#Creating  Shiny App function for inputs and outputs 
+server <- function(input, output, session){
+  
+  #Data Table - Not Uutput
+  output$static <- renderTable(head(df %>% 
+                                      filter(
+                                        (Inning == input$n_inning) &
+                                        (top_bot == input$top_or_bot) &
+                                          (Outs == input$n_outs) &
+                                          (runners == input$base_runners)) %>%
+                                      select(`Inning Runs`)))
+  
+  #Input Affected Histogram
+  output$plot <- renderPlot(
+    ggplot(
+      df %>% 
+        filter(
+          (Inning == input$n_inning) &
+            (top_bot == input$top_or_bot) &
+            (Outs == input$n_outs) &
+            (runners == input$base_runners)) %>%
+        select(`Inning Runs`),
+      aes(x=`Inning Runs`)) +
+      geom_histogram() + 
+      ggtitle("Distribution of Runs Scored") +
+      xlab("Number of Runs in Inning") + ylab("Occurences"))
+    
+  #Run Expectancy Matrix
+  output$matrix <- renderPlotly(
+    df_group %>% 
+      ggplot(aes(y=Onbase, fill=`Runs Expected`, x=Outs))+
+      geom_tile()+
+      scale_fill_gradient2(low="red", high="blue", mid="white") +
+      ggtitle("Run Expectancy Matrix") +
+      xlab("Number of Outs") + ylab("Base Runners"))
+  
+    #Probability Matrix
+    output$matrix1 <- renderPlotly(
+      df_group %>% 
+          ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
+          geom_tile() +
+          scale_fill_gradient(low="red", high="green") +
+          ggtitle("Probability of Scoring Matrix") +
+          xlab("Number of Outs") + ylab("Base Runners"))
+      
+
+}
+
+
+#Calling Shiny App function
+# shinyApp(ui, server)
+
+```
+
+
+Overall, I believe the examples I have provided throughout this reflection exemplify the vast improvements I have made in R programming throughout this semester. Because of these improvements and my ability to show examples demonstrating each of Course Objectives, I feel that I have earned an 'A' for my work in this class. I have really enjoyed this class and the work I have put in has felt rewarding. Even though there were times of struggle, I feel that this project and the activities have helped me tremendously. The experience I've gained will come in very handy at my new job come graduation. 

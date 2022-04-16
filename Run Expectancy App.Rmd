@@ -138,7 +138,6 @@ p <- df_group %>%
   ggtitle("Run Expectancy Matrix") +
   xlab("Number of Outs") + ylab("Base Runners")
 ggplotly(p)
-
 ```
 
 

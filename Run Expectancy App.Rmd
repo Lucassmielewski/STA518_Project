@@ -10,17 +10,17 @@ options(warn = -1)
 options(shiny.trace = FALSE)
 ```
 
-```{r Lodaing Packages, echo=FALSE}
+```{r Lodaing Packages, include=FALSE, echo=FALSE}
 library(tidyverse)
 library(shiny)
 library(plotly)
 ```
 
-```{r Importing Data, echo=FALSE}
+```{r Importing Data, echo=FALSE, include=FALSE}
 df1 <- read_csv(here::here('~/STA 518/STA518_Project/Results/Seaon Total Innings.csv'))
 ```
 
-```{r combine runners, echo=FALSE}
+```{r combine runners, echo=FALSE, include=FALSE}
 df <- df1 %>% 
   unite(Onbase, First:Third) %>% 
   mutate(`top_bot` = case_when(`Home Team` ==0 ~ "Top",
@@ -36,7 +36,7 @@ df <- df1 %>%
 
 ```
 
-```{r formating df1, ecHo=FALSE}
+```{r formating df1, ecHo=FALSE, include=FALSE}
 df1 <- df1 %>% 
   mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
 
@@ -62,7 +62,7 @@ run_prob_matrix <- df_group %>%
 ```
 
 
-```{r Run_inputs, echo=FALSE}
+```{r Run_inputs, echo=FALSE, include=FALSE}
 ui <- fluidPage(
   theme = bslib::bs_theme(bootswatch = "flatly"),
   titlePanel(
@@ -96,9 +96,6 @@ ui <- fluidPage(
 
 
 server <- function(input, output, session){
-  output$panel <- renderText({
-    paste("Current panel: ", input$tabset)
-  })
   
   output$static <- renderTable(head(df %>% 
     filter(
@@ -118,8 +115,9 @@ server <- function(input, output, session){
              (runners == input$base_runners)) %>%
         select(`Inning Runs`),
       aes(x=`Inning Runs`)) +
-      geom_histogram() +
-      geom_density()
+      geom_histogram() + 
+      ggtitle("Distribution of Runs Scored") +
+      xlab("Number of Runs in Inning") + ylab("Frequency")
   )
 }
 
@@ -132,19 +130,23 @@ shinyApp(ui, server)
 ```
 
 
-```{r Runs Expected Matrix}
+```{r Runs Expected Matrix, echo=FALSE}
 p <- df_group %>% 
   ggplot(aes(y=Onbase, fill=`Runs Expected`, x=Outs))+
-  geom_tile()
+  geom_tile()+
+  ggtitle("Run Expectancy Matrix") +
+  xlab("Number of Outs") + ylab("Base Runners")
 ggplotly(p)
 
 ```
 
 
-```{r Probability of Scoring Matrix}
+```{r Probability of Scoring Matrix, echo=FALSE}
 p <- df_group %>% 
   ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
-  geom_tile()
+  geom_tile() +
+  ggtitle("Probability of Scoring Matrix") +
+  xlab("Number of Outs") + ylab("Base Runners")
 ggplotly(p)
 ```
 

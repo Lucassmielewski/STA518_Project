@@ -134,6 +134,7 @@ shinyApp(ui, server)
 p <- df_group %>% 
   ggplot(aes(y=Onbase, fill=`Runs Expected`, x=Outs))+
   geom_tile()+
+  scale_fill_gradient2(low="red", high="blue", mid="white") +
   ggtitle("Run Expectancy Matrix") +
   xlab("Number of Outs") + ylab("Base Runners")
 ggplotly(p)
@@ -145,6 +146,7 @@ ggplotly(p)
 p <- df_group %>% 
   ggplot(aes(y=Onbase, fill=`Probabilty of Scoring`, x=Outs))+
   geom_tile() +
+  scale_fill_gradient(low="red", high="green") +
   ggtitle("Probability of Scoring Matrix") +
   xlab("Number of Outs") + ylab("Base Runners")
 ggplotly(p)

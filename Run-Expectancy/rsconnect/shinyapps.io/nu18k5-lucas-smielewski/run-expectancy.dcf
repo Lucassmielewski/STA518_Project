@@ -1,0 +1,11 @@
+name: run-expectancy
+title:
+username:
+account: nu18k5-lucas-smielewski
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6101564
+bundleId: 5803929
+url: https://nu18k5-lucas-smielewski.shinyapps.io/run-expectancy/
+when: 1650071422.72846
+lastSyncTime: 1650071422.72846

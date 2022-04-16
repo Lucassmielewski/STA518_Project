@@ -1,18 +1,12 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
+#Loading Packages
 library(tidyverse)
 library(shiny)
 library(plotly)
+library(rsconnect)
 
 
 
+#Reading in  Results Dataset
 df1 <- read_csv(here::here('~/STA 518/STA518_Project/Results/Seaon Total Innings.csv'))
 
 
@@ -29,7 +23,7 @@ df <- df1 %>%
                              Onbase == '0_0_1' ~ "Third",
                              Onbase == '1_1_1' ~ "Bases Loaded"))
 
-
+#Formatiing Data
 df1 <- df1 %>% 
   mutate(`Scored` = if_else(`Inning Runs` >= 1,TRUE,FALSE))
 
@@ -52,6 +46,9 @@ runs_expected_matrix <- df_group %>%
 run_prob_matrix <- df_group %>% 
   pivot_wider(id_cols=Onbase, names_from=Outs, values_from=`Probabilty of Scoring`, names_prefix='Outs: ', names_sep=' ')
 
+
+
+#Setting up Shiny App and gathering Inputs
 ui <- fluidPage(
   theme = bslib::bs_theme(bootswatch = "flatly"),
   titlePanel(
@@ -87,7 +84,7 @@ ui <- fluidPage(
   )
 )
 
-
+#Creating  Shiny App function for inputs and outputs 
 server <- function(input, output, session){
   
   #Data Table - Not Uutput
@@ -112,7 +109,7 @@ server <- function(input, output, session){
       aes(x=`Inning Runs`)) +
       geom_histogram() + 
       ggtitle("Distribution of Runs Scored") +
-      xlab("Number of Runs in Inning") + ylab("Frequency"))
+      xlab("Number of Runs in Inning") + ylab("Occurences"))
     
   #Run Expectancy Matrix
   output$matrix <- renderPlotly(
@@ -136,9 +133,9 @@ server <- function(input, output, session){
 }
 
 
-
+#Calling Shiny App function
 shinyApp(ui, server)
 
 
-
+deployApp()
 

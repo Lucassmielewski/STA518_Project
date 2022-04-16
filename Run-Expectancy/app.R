@@ -7,7 +7,7 @@ library(rsconnect)
 
 
 #Reading in  Results Dataset
-df1 <- read_csv(here::here('~/STA 518/STA518_Project/Results/Seaon Total Innings.csv'))
+df1 <- read_csv(here::here('Results','Seaon Total Innings.csv'))
 
 
 df <- df1 %>% 
@@ -135,7 +135,3 @@ server <- function(input, output, session){
 
 #Calling Shiny App function
 shinyApp(ui, server)
-
-
-deployApp()
-

@@ -1,0 +1,36 @@
+---
+title: "Final Rlection"
+author: "Lucas Smielewski"
+date: "4/15/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Loading Packages, echo=FALSE}
+library(tidyverse)
+library(plotly)
+```
+
+
+Link to Final Project - https://github.com/Lucassmielewski/STA518_Project
+
+Objectives:
+Import, manage, and clean data.
+Create graphical displays and numerical summaries of data for exploratory analysis and presentations.
+Write R programs for simulations from probability models and randomization-based experiments.
+Use source documentation and other resources to troubleshoot and extend R programs.
+Write clear, efficient, and well-documented R programs.
+
+
+  For my final project I decided analyse run expectancy in the MLB. The goal of the project was to build an interactive Shiny App where the user would input a combination of game state variables including, inning number, home or away batting, number of outs and the location of runs on base. After gather user inputs the application would show the distribution of runs that a team is expected to score in the inning based on these selections. To accomplish this goal I downloaded play-by-play data from MLB Retrosheets - https://www.retrosheet.org/. The embedded code snippet below shows a small example of the raw text data that I first loaded into R. 
+  
+```{r Importing Raw Data}
+ANA = read_tsv(here::here("data", "2021ANA.EVA"), col_names=FALSE)
+head(ANA)
+```
+
+  After reviewing the coded data, I knew this project was going to be a long process and I was right, it was. But while working on this project in the past few months as well as completeing the in-class activities earlier in the semester, I have gained a lot of experience using R, a software I plan to use extensively in my job following graduation. In this document, I will go through a few of the steps I took to complete my project and use these to eexhibit 
+  

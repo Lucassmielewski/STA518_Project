@@ -5,7 +5,7 @@ account: nu18k5-lucas-smielewski
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 6101564
-bundleId: 5803929
+bundleId: 5803937
 url: https://nu18k5-lucas-smielewski.shinyapps.io/run-expectancy/
-when: 1650071422.72846
-lastSyncTime: 1650071422.72846
+when: 1650071902.61846
+lastSyncTime: 1650071902.61846
